@@ -1,0 +1,36 @@
+services:
+  dnsmasq:
+    image: jpillora/dnsmasq:latest
+    container_name: dev-dns
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    volumes:
+      - /tmp/dnsmasq.conf:/etc/dnsmasq.conf
+    depends_on:
+      - dnsmasq-gen
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - dns-network
+
+  dnsmasq-gen:
+    image: jwilder/docker-gen:latest
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - ./templates/dnsmasq.tmpl:/etc/docker-gen/templates/dnsmasq.tmpl:ro
+      - /tmp:/output
+    entrypoint: >
+      /bin/sh -c "
+        docker-gen -notify-sighup dev-dns -watch
+          /etc/docker-gen/templates/dnsmasq.tmpl
+          /output/dnsmasq.conf
+      "
+    restart: unless-stopped
+    networks:
+      - dns-network
+
+networks:
+  dns-network:
+    driver: bridge
