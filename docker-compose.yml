@@ -3,30 +3,27 @@ services:
     image: jpillora/dnsmasq:latest
     container_name: dev-dns
     ports:
-      - "53:53/udp"
-      - "53:53/tcp"
+      - "5354:53/udp"
+      - "5354:53/tcp"
     volumes:
-      - /tmp/dnsmasq.conf:/etc/dnsmasq.conf
+      - ./dnsmasq.conf:/etc/dnsmasq.conf:ro
     depends_on:
-      - dnsmasq-gen
+      dnsmasq-gen:
+        condition: service_started
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
     networks:
       - dns-network
+    command: -k --log-facility=-
 
   dnsmasq-gen:
-    image: jwilder/docker-gen:latest
+    image: jwilder/docker-gen:0.9.0
     volumes:
       - /var/run/docker.sock:/tmp/docker.sock:ro
       - ./templates/dnsmasq.tmpl:/etc/docker-gen/templates/dnsmasq.tmpl:ro
-      - /tmp:/output
-    entrypoint: >
-      /bin/sh -c "
-        docker-gen -notify-sighup dev-dns -watch
-          /etc/docker-gen/templates/dnsmasq.tmpl
-          /output/dnsmasq.conf
-      "
+      - ./dnsmasq.conf:/etc/dnsmasq.conf.tmpl
+    command: -notify "docker kill -s HUP dev-dns" -watch -only-exposed /etc/docker-gen/templates/dnsmasq.tmpl /etc/dnsmasq.conf
     restart: unless-stopped
     networks:
       - dns-network
