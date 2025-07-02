@@ -1,4 +1,16 @@
-.PHONY: up down restart logs status test clean setup-linux setup-macos kill-ports help
+.PHONY: up down restart logs status test clean setup-linux setup-macos kill-ports help env
+
+# Default DNS port
+DNS_PORT ?= 53
+
+# Export all variables to sub-makes
+export
+
+# Create .env file if it doesn't exist
+.env:
+	@echo "# DNS Configuration" > .env
+	@echo "DNS_PORT=${DNS_PORT}" >> .env
+	@echo "Created .env file with default values"
 
 # Default target
 all: help
@@ -21,27 +33,25 @@ help:
 
 # Kill processes on required ports
 kill-ports:
-	@echo "\033[1mKilling processes on ports 53, 5353, 5354 (TCP/UDP)...\033[0m"
-	@for port in 53 5353 5354; do \
-		echo "Checking port $$port..."; \
-		if command -v lsof >/dev/null 2>&1; then \
-			sudo lsof -i :$$port -sTCP:LISTEN -t 2>/dev/null | xargs -r sudo kill -9 2>/dev/null || true; \
-			sudo lsof -i udp:$$port -t 2>/dev/null | xargs -r sudo kill -9 2>/dev/null || true; \
-		elif command -v fuser >/dev/null 2>&1; then \
-			sudo fuser -k $$port/tcp 2>/dev/null || true; \
-			sudo fuser -k $$port/udp 2>/dev/null || true; \
-		else \
-			echo "Could not find lsof or fuser. Please install one of them to kill processes."; \
-			exit 1; \
-		fi; \
-	done
-	@echo "Ports cleared successfully"
+	@echo "\033[1mKilling processes on port ${DNS_PORT} (TCP/UDP)...\033[0m"
+	@echo "Checking port ${DNS_PORT}..."
+	@if command -v lsof >/dev/null 2>&1; then \
+		sudo lsof -i :${DNS_PORT} -sTCP:LISTEN -t 2>/dev/null | xargs -r sudo kill -9 2>/dev/null || true; \
+		sudo lsof -i udp:${DNS_PORT} -t 2>/dev/null | xargs -r sudo kill -9 2>/dev/null || true; \
+	elif command -v fuser >/dev/null 2>&1; then \
+		sudo fuser -k ${DNS_PORT}/tcp 2>/dev/null || true; \
+		sudo fuser -k ${DNS_PORT}/udp 2>/dev/null || true; \
+	else \
+		echo "Could not find lsof or fuser. Please install one of them to kill processes."; \
+		exit 1; \
+	fi
+	@echo "Port ${DNS_PORT} cleared successfully"
 
 # Start the service
-up: kill-ports
-	@echo "\033[1mStarting dnsmasq service...\033[0m"
-	@docker compose up -d
-	@echo "\n\033[1;32m✓ dnsmasq is running on port 5354\033[0m"
+up: .env kill-ports
+	@echo "\033[1mStarting dnsmasq service on port ${DNS_PORT}...\033[0m"
+	@DNS_PORT=${DNS_PORT} docker compose up -d
+	@echo "\n\033[1;32m✓ dnsmasq is running on port ${DNS_PORT}\033[0m"
 	@echo "Test with: make test"
 
 # Stop and remove containers
@@ -67,12 +77,12 @@ test:
 		echo "Error: dnsmasq container is not running. Run 'make up' first."; \
 		exit 1; \
 	fi
-	@echo "Querying local DNS for web.test..."
+	@echo "Querying local DNS for web.test on port ${DNS_PORT}..."
 	@if ! command -v dig &> /dev/null; then \
 		echo "dig command not found. Install dnsutils or bind-tools package."; \
 		exit 1; \
 	fi
-	@dig +short web.test @127.0.0.1 -p 5354 || (echo "\n\033[31m✗ DNS query failed. Is the service running?\033[0m" && exit 1)
+	@dig +short web.test @127.0.0.1 -p ${DNS_PORT} || (echo "\n\033[31m✗ DNS query failed. Is the service running on port ${DNS_PORT}?\033[0m" && exit 1)
 
 # Clean up
 clean: down

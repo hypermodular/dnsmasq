@@ -3,8 +3,10 @@ services:
     image: jpillora/dnsmasq:latest
     container_name: dev-dns
     ports:
-      - "5354:53/udp"
-      - "5354:53/tcp"
+      - "${DNS_PORT:-53}:53/udp"
+      - "${DNS_PORT:-53}:53/tcp"
+    environment:
+      - DNS_PORT=${DNS_PORT:-53}
     volumes:
       - ./dnsmasq.conf:/etc/dnsmasq.conf:ro
     depends_on:
