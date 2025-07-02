@@ -6,11 +6,13 @@ DNS_PORT ?= 53
 # Export all variables to sub-makes
 export
 
-# Create .env file if it doesn't exist
-.env:
-	@echo "# DNS Configuration" > .env
-	@echo "DNS_PORT=${DNS_PORT}" >> .env
-	@echo "Created .env file with default values"
+# Create dnsmasq.env file if it doesn't exist
+dnsmasq.env:
+	@echo "# DNS Configuration" > dnsmasq.env
+	@echo "DNS_PORT=${DNS_PORT}" >> dnsmasq.env
+	@echo "# Note: This file is generated. Do not edit directly." >> dnsmasq.env
+	@chmod 644 dnsmasq.env
+	@echo "Created dnsmasq.env file with default values"
 
 # Default target
 all: help
@@ -31,6 +33,11 @@ help:
 	@echo "  \033[1msetup-macos\033[0m - Configure macOS to use local DNS"
 	@echo ""
 
+# Load environment variables from dnsmasq.env
+include dnsmasq.env
+
+export DNS_PORT ?= 5353
+
 # Kill processes on required ports
 kill-ports:
 	@echo "\033[1mKilling processes on port ${DNS_PORT} (TCP/UDP)...\033[0m"
@@ -47,10 +54,20 @@ kill-ports:
 	fi
 	@echo "Port ${DNS_PORT} cleared successfully"
 
+# Instructions to free port 53
+free-port-53:
+	@echo "\033[1m=== Port 53 Configuration Required ===\033[0m"
+	@echo "To use port 53, you need to run the following command with sudo:"
+	@echo "  sudo scripts/free-port-53.sh"
+	@echo ""
+	@echo "After running the above command, run 'make up' again."
+	@echo ""
+	@exit 1
+
 # Start the service
-up: .env kill-ports
+up: dnsmasq.env kill-ports
 	@echo "\033[1mStarting dnsmasq service on port ${DNS_PORT}...\033[0m"
-	@DNS_PORT=${DNS_PORT} docker compose up -d
+	@docker compose --env-file dnsmasq.env up -d
 	@echo "\n\033[1;32m✓ dnsmasq is running on port ${DNS_PORT}\033[0m"
 	@echo "Test with: make test"
 
@@ -117,3 +134,10 @@ setup-macos:
 	else \
 		echo "macOS resolver is already configured for .test domain"; \
 	fi
+
+stop:
+	sudo scripts/free-port-53.sh
+	sudo scripts/free-port-80.sh
+	sudo scripts/free-port-5353.sh
+	sudo scripts/free-port-8000.sh
+	sudo scripts/free-port-8080.sh

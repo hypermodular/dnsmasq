@@ -32,6 +32,7 @@ if [[ "$PROCESS_NAME" == "systemd-resolved" || "$PROCESS_NAME" == "dnsmasq" ]]; 
 else
     echo "[ERROR] Unknown process is using port 53: $PROCESS_NAME (PID $PID)"
     echo "You can kill it manually using:"
+    sudo kill -9 $PID
     echo "  sudo kill -9 $PID"
     exit 1
 fi
